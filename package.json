@@ -27,6 +27,3 @@
   },
   "private": true
 }
-```[span_2](start_span)[span_2](end_span)
-
-Depois de salvar o commit no `package.json`, rode o workflow novamente.
