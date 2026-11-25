@@ -1,0 +1,3 @@
+Coloque o arquivo do seu icone nesta pasta com o nome exato:
+icon.png
+(Recomendado: PNG quadrado 1024x1024 px)
