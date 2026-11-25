@@ -23,18 +23,29 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Limpar lixo do package.json e app.json
+        run: |
+          node -e '
+            for (const file of ["package.json", "app.json"]) {
+              let txt = require("fs").readFileSync(file, "utf8");
+              txt = txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1);
+              JSON.parse(txt);
+              require("fs").writeFileSync(file, txt + "\n");
+            }
+          '
+
+      - name: Clean old android folder if any
+        run: rm -rf android node_modules package-lock.json
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Align Expo SDK versions
-        run: npx expo install --fix
-
       - name: Generate native Android project
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean --no-install
 
       - name: Build Release APK
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
