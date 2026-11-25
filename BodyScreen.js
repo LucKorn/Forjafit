@@ -3,276 +3,349 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Alert,
 } from 'react-native';
-import { Save } from 'lucide-react-native';
+import { Scale, Plus, Trash2 } from 'lucide-react-native';
 import { COLORS } from './colors';
-import { triggerShortBeep } from './feedback';
+import { triggerLightTap } from './feedback';
 
-export default function BodyScreen({ profile, history, onSaveRecord }) {
-  const [form, setForm] = useState(profile);
+export default function BodyScreen({
+  profile,
+  history,
+  onSaveRecord,
+  onDeleteRecord,
+  onClearBodyHistory,
+}) {
+  const [weight, setWeight] = useState('');
+  const [waist, setWaist] = useState('');
+  const [chest, setChest] = useState('');
+  const [arm, setArm] = useState('');
 
-  const heightM = (parseFloat(form.heightCm) || 0) / 100;
-  const weight = parseFloat(form.weightKg) || 0;
-  const bmi = heightM > 0 && weight > 0 ? (weight / (heightM * heightM)).toFixed(1) : '--';
+  const latest = history.length > 0 ? history[0] : null;
+  const heightM = (profile?.heightCm || 177) / 100;
+  const bmi = latest && heightM > 0 ? (latest.weightKg / (heightM * heightM)).toFixed(1) : '--';
 
-  const getBmiLabel = (val) => {
-    const num = parseFloat(val);
-    if (isNaN(num)) return '';
-    if (num < 18.5) return 'Abaixo do peso';
-    if (num < 25) return 'Peso normal';
-    if (num < 30) return 'Sobrepeso';
-    return 'Obesidade';
-  };
-
-  const updateField = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
-
-  const handleSave = () => {
-    triggerShortBeep();
+  const handleAdd = () => {
+    const w = parseFloat(weight.replace(',', '.'));
+    if (!w || w <= 0) {
+      Alert.alert('Peso inválido', 'Informe seu peso atual em kg.');
+      return;
+    }
+    triggerLightTap();
     const now = new Date();
-    const monthKey = now.toISOString().slice(0, 7);
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const months = [
+      'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+    ];
     const dateLabel = `${String(now.getDate()).padStart(2, '0')} ${months[now.getMonth()]} ${now.getFullYear()}`;
 
-    const newEntry = {
-      id: 'b_' + Date.now(),
-      monthKey,
+    onSaveRecord({
+      id: 'body-' + Date.now(),
+      timestamp: now.getTime(),
       dateLabel,
-      weightKg: parseFloat(form.weightKg) || 0,
-      bmi,
-      waistCm: form.waistCm,
-      armCm: form.armCm,
-      chestCm: form.chestCm,
-    };
+      weightKg: w,
+      waistCm: waist ? parseFloat(waist.replace(',', '.')) : null,
+      chestCm: chest ? parseFloat(chest.replace(',', '.')) : null,
+      armCm: arm ? parseFloat(arm.replace(',', '.')) : null,
+    });
 
-    onSaveRecord(form, newEntry);
-    Alert.alert('Medidas Salvas', 'Registro corporal adicionado ao histórico.');
+    setWeight('');
+    setWaist('');
+    setChest('');
+    setArm('');
+  };
+
+  const confirmDeleteRecord = (entry) => {
+    triggerLightTap();
+    Alert.alert(
+      'Excluir Medida Corporal',
+      `Deseja remover o registro de ${entry.dateLabel} (${entry.weightKg} kg)?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => onDeleteRecord && onDeleteRecord(entry.id),
+        },
+      ]
+    );
+  };
+
+  const confirmClearAllBody = () => {
+    triggerLightTap();
+    Alert.alert(
+      'Limpar Histórico Corporal',
+      `Deseja excluir todos os ${history.length} registros de medidas do corpo?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir Tudo',
+          style: 'destructive',
+          onPress: () => onClearBodyHistory && onClearBodyHistory(),
+        },
+      ]
+    );
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Medidas & Perfil</Text>
-        <Text style={styles.subtitle}>Peso, altura, IMC e circunferências</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.title}>Medidas Corporais</Text>
+      <Text style={styles.subtitle}>Acompanhe peso, IMC e circunferências</Text>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.sumLabel}>Peso Atual</Text>
+          <Text style={styles.sumValue}>{latest ? `${latest.weightKg} kg` : '--'}</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.sumLabel}>IMC ({profile?.heightCm || 177} cm)</Text>
+          <Text style={styles.sumValue}>{bmi}</Text>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.bmiCard}>
-          <View>
-            <Text style={styles.bmiTag}>ÍNDICE DE MASSA CORPORAL (IMC)</Text>
-            <Text style={styles.bmiValue}>{bmi}</Text>
-            <Text style={styles.bmiStatus}>{getBmiLabel(bmi)}</Text>
+      <View style={styles.formCard}>
+        <View style={styles.formHeader}>
+          <Scale size={16} color={COLORS.orange} />
+          <Text style={styles.formTitle}>NOVO REGISTRO</Text>
+        </View>
+
+        <View style={styles.grid}>
+          <View style={styles.field}>
+            <Text style={styles.label}>Peso (kg) *</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={weight}
+              onChangeText={setWeight}
+              placeholder="79.0"
+              placeholderTextColor={COLORS.textMuted}
+            />
           </View>
-          <View style={styles.hwBadge}>
-            <Text style={styles.hwText}>{form.weightKg || '--'} kg</Text>
-            <Text style={styles.hwSub}>{form.heightCm || '--'} cm</Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Cintura (cm)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={waist}
+              onChangeText={setWaist}
+              placeholder="84"
+              placeholderTextColor={COLORS.textMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Tórax (cm)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={chest}
+              onChangeText={setChest}
+              placeholder="102"
+              placeholderTextColor={COLORS.textMuted}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Braço (cm)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={arm}
+              onChangeText={setArm}
+              placeholder="37"
+              placeholderTextColor={COLORS.textMuted}
+            />
           </View>
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>DADOS ATUAIS</Text>
-          <View style={styles.grid}>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Peso (kg)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.weightKg)}
-                onChangeText={(v) => updateField('weightKg', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Altura (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.heightCm)}
-                onChangeText={(v) => updateField('heightCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Peitoral (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.chestCm)}
-                onChangeText={(v) => updateField('chestCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Braço (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.armCm)}
-                onChangeText={(v) => updateField('armCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Cintura (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.waistCm)}
-                onChangeText={(v) => updateField('waistCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Abdômen (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.abdomenCm)}
-                onChangeText={(v) => updateField('abdomenCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Coxa (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.thighCm)}
-                onChangeText={(v) => updateField('thighCm', v)}
-              />
-            </View>
-            <View style={styles.fieldBox}>
-              <Text style={styles.label}>Panturrilha (cm)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={String(form.calfCm)}
-                onChangeText={(v) => updateField('calfCm', v)}
-              />
-            </View>
-          </View>
+        <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+          <Plus size={16} color="#fff" />
+          <Text style={styles.addBtnText}>SALVAR MEDIDA</Text>
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Save size={18} color="#09090b" />
-            <Text style={styles.saveBtnText}>Salvar Registro</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>HISTÓRICO DE MEDIDAS ({history.length})</Text>
+        {history.length > 0 && (
+          <TouchableOpacity style={styles.clearAllBtn} onPress={confirmClearAllBody}>
+            <Trash2 size={13} color={COLORS.red} />
+            <Text style={styles.clearAllText}>Limpar tudo</Text>
           </TouchableOpacity>
-        </View>
+        )}
+      </View>
 
-        <Text style={styles.historyHeader}>HISTÓRICO DE AVALIAÇÕES</Text>
-        {history.map((item, idx) => {
+      {history.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>Nenhuma medida corporal registrada.</Text>
+        </View>
+      ) : (
+        history.map((item, idx) => {
           const prev = history[idx + 1];
           const diff = prev ? (item.weightKg - prev.weightKg).toFixed(1) : null;
+          const details = [
+            item.waistCm ? `Cintura: ${item.waistCm} cm` : null,
+            item.chestCm ? `Tórax: ${item.chestCm} cm` : null,
+            item.armCm ? `Braço: ${item.armCm} cm` : null,
+          ]
+            .filter(Boolean)
+            .join(' • ');
+
           return (
             <View key={item.id} style={styles.histCard}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.histDate}>{item.dateLabel}</Text>
-                <Text style={styles.histMetrics}>
-                  Braço: {item.armCm}cm • Cintura: {item.waistCm}cm • Peito: {item.chestCm}cm
-                </Text>
+                {!!details && <Text style={styles.histDetails}>{details}</Text>}
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.histWeight}>{item.weightKg} kg</Text>
-                {diff !== null && (
-                  <Text
-                    style={[
-                      styles.histDiff,
-                      { color: parseFloat(diff) <= 0 ? COLORS.green : COLORS.orange },
-                    ]}
-                  >
-                    {parseFloat(diff) > 0 ? `+${diff}` : diff} kg
-                  </Text>
-                )}
+
+              <View style={styles.histRight}>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.histWeight}>{item.weightKg} kg</Text>
+                  {diff !== null && (
+                    <Text
+                      style={[
+                        styles.histDiff,
+                        { color: parseFloat(diff) <= 0 ? COLORS.green : COLORS.orange },
+                      ]}
+                    >
+                      {parseFloat(diff) > 0 ? `+${diff}` : diff} kg
+                    </Text>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() => confirmDeleteRecord(item)}
+                >
+                  <Trash2 size={15} color={COLORS.red} />
+                </TouchableOpacity>
               </View>
             </View>
           );
-        })}
-      </ScrollView>
-    </View>
+        })
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  title: { fontSize: 21, fontWeight: '900', color: COLORS.text },
-  subtitle: { fontSize: 12, color: COLORS.textMuted },
-  scrollContent: { padding: 14, paddingBottom: 40 },
-  bmiCard: {
+  content: { padding: 16, paddingBottom: 32 },
+  title: { color: COLORS.text, fontSize: 22, fontWeight: '800' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2, marginBottom: 14 },
+  summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  summaryCard: {
+    flex: 1,
     backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.orangeBorder,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  bmiTag: { fontSize: 10, fontWeight: '800', color: COLORS.orange, letterSpacing: 0.8 },
-  bmiValue: { fontSize: 30, fontWeight: '900', color: COLORS.text, marginTop: 2 },
-  bmiStatus: { fontSize: 12, fontWeight: '700', color: COLORS.green },
-  hwBadge: {
-    backgroundColor: COLORS.bg,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  hwText: { fontSize: 16, fontWeight: '900', color: COLORS.text },
-  hwSub: { fontSize: 12, color: COLORS.textMuted },
+  sumLabel: { color: COLORS.textSecondary, fontSize: 12 },
+  sumValue: { color: COLORS.text, fontSize: 20, fontWeight: '800', marginTop: 4 },
   formCard: {
     backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 18,
   },
-  sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.orange, letterSpacing: 1, marginBottom: 10 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
-  fieldBox: { width: '48%' },
-  label: { fontSize: 11, color: COLORS.textMuted, fontWeight: '700', marginBottom: 4 },
+  formHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  formTitle: { color: COLORS.orange, fontSize: 12, fontWeight: '800', letterSpacing: 0.8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  field: { width: '48%' },
+  label: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 4 },
   input: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: COLORS.cardElevated,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
   },
-  saveBtn: {
-    backgroundColor: COLORS.orange,
-    borderRadius: 12,
-    paddingVertical: 13,
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
+    gap: 6,
+    backgroundColor: COLORS.orange,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 14,
   },
-  saveBtnText: { color: '#09090b', fontWeight: '900', fontSize: 14 },
-  historyHeader: { fontSize: 11, fontWeight: '800', color: COLORS.orange, letterSpacing: 1, marginBottom: 10 },
+  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    color: COLORS.orange,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  clearAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.redDim,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  clearAllText: {
+    color: COLORS.red,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  emptyText: { color: COLORS.textMuted, fontSize: 13 },
   histCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: COLORS.card,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
   },
-  histDate: { fontSize: 13, fontWeight: '800', color: COLORS.text },
-  histMetrics: { fontSize: 11, color: COLORS.textMuted, marginTop: 3 },
-  histWeight: { fontSize: 16, fontWeight: '900', color: COLORS.text },
-  histDiff: { fontSize: 11, fontWeight: '800', marginTop: 2 },
+  histDate: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  histDetails: { color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
+  histRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  histWeight: { color: COLORS.orange, fontSize: 16, fontWeight: '800' },
+  histDiff: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
+    
