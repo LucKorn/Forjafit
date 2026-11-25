@@ -2,78 +2,89 @@ import { Vibration } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 
-function createToneBase64(frequencies, durationMs = 180) {
-  const sampleRate = 22050;
-  const samplesPerTone = Math.floor((sampleRate * durationMs) / 1000);
-  const totalSamples = samplesPerTone * frequencies.length;
-  const dataSize = totalSamples * 2;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
+export const triggerRestFinishedFeedback = async () => {
+  try {
+    // Padrão forte de vibração nativa no Android: [espera, vibra, pausa, vibra, pausa, vibra]
+    Vibration.vibrate([0, 600, 200, 600, 200, 800]);
+  } catch (e) {}
 
-  const writeStr = (offset, str) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
+  try {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch (e) {}
 
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  let offset = 44;
-  frequencies.forEach((freq) => {
-    for (let i = 0; i < samplesPerTone; i++) {
-      const t = i / sampleRate;
-      const env = Math.min(1, i / 300) * Math.min(1, (samplesPerTone - i) / 600);
-      const sample = freq > 0 ? Math.sin(2 * Math.PI * freq * t) * 0.65 * env : 0;
-      view.setInt16(offset, sample * 32767, true);
-      offset += 2;
-    }
-  });
-
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return 'data:audio/wav;base64,' + btoa(binary);
-}
-
-async function playFrequencies(freqs, durationMs = 170) {
   try {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
       shouldDuckAndroid: true,
     });
-    const uri = createToneBase64(freqs, durationMs);
-    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.didJustFinish) {
-        sound.unloadAsync();
-      }
-    });
+    // Gera um bipe WAV curto em base64 para não depender de arquivo externo
+    const sampleRate = 8000;
+    const durationSec = 0.35;
+    const numSamples = Math.floor(sampleRate * durationSec);
+    const freq = 880;
+    const headerSize = 44;
+    const totalSize = headerSize + numSamples;
+    const bytes = new Uint8Array(totalSize);
+    const writeStr = (offset, str) => {
+      for (let i = 0; i < str.length; i++) bytes[offset + i] = str.charCodeAt(i);
+    };
+    const writeU32 = (offset, val) => {
+      bytes[offset] = val & 0xff;
+      bytes[offset + 1] = (val >> 8) & 0xff;
+      bytes[offset + 2] = (val >> 16) & 0xff;
+      bytes[offset + 3] = (val >> 24) & 0xff;
+    };
+    const writeU16 = (offset, val) => {
+      bytes[offset] = val & 0xff;
+      bytes[offset + 1] = (val >> 8) & 0xff;
+    };
+    writeStr(0, 'RIFF');
+    writeU32(4, totalSize - 8);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    writeU32(16, 16);
+    writeU16(20, 1);
+    writeU16(22, 1);
+    writeU32(24, sampleRate);
+    writeU32(28, sampleRate);
+    writeU16(32, 1);
+    writeU16(34, 8);
+    writeStr(36, 'data');
+    writeU32(40, numSamples);
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const env = Math.min(1, i / 200) * Math.min(1, (numSamples - i) / 400);
+      const val = 128 + Math.round(110 * env * Math.sin(2 * Math.PI * freq * t));
+      bytes[headerSize + i] = val;
+    }
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let b64 = '';
+    for (let i = 0; i < bytes.length; i += 3) {
+      const b1 = bytes[i];
+      const b2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+      const b3 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+      b64 += chars[b1 >> 2];
+      b64 += chars[((b1 & 3) << 4) | (b2 >> 4)];
+      b64 += i + 1 < bytes.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : '=';
+      b64 += i + 2 < bytes.length ? chars[b3 & 63] : '=';
+    }
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: 'data:audio/wav;base64,' + b64 },
+      { shouldPlay: true, volume: 1.0 }
+    );
+    setTimeout(() => {
+      sound.unloadAsync().catch(() => {});
+    }, 1500);
   } catch (e) {}
-}
+};
 
-export async function triggerShortBeep() {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  await playFrequencies([660], 110);
-}
-
-export async function triggerTimerDone() {
-  Vibration.vibrate([0, 250, 120, 250]);
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  await playFrequencies([880, 0, 1046.5], 160);
-}
-
-export async function triggerWorkoutFinished() {
-  Vibration.vibrate([0, 300, 120, 300, 120, 500]);
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  await playFrequencies([523.25, 659.25, 783.99, 1046.5], 180);
-}
+export const triggerLightTap = async () => {
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  } catch (e) {
+    try {
+      Vibration.vibrate(40);
+    } catch (_) {}
+  }
+};
