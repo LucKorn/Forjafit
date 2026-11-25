@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
@@ -22,8 +22,10 @@
         "VIBRATE"
       ]
     },
-    "plugins": [
-      "expo-av"
-    ]
+    "extra": {
+      "eas": {
+        "projectId": "E0c3aaa9-8b69-42ea-9f3b-6d0b337d98a4"
+      }
+    }
   }
 }
