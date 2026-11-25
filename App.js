@@ -1,30 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { Dumbbell, BarChart3, FolderKanban, User } from 'lucide-react-native';
-
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, SafeAreaView } from 'react-native';
+import { Dumbbell, BarChart2, FolderOpen, User } from 'lucide-react-native';
 import { COLORS } from './colors';
 import { INITIAL_DATA } from './initialData';
 import { loadAppData, saveAppData } from './storage';
-
 import HomeScreen from './HomeScreen';
 import WorkoutScreen from './WorkoutScreen';
 import EvolutionScreen from './EvolutionScreen';
 import SheetsScreen from './SheetsScreen';
 import BodyScreen from './BodyScreen';
+import RestBar from './RestBar';
 
 export default function App() {
   const [appData, setAppData] = useState(INITIAL_DATA);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('treinos');
-  const [activeWorkoutId, setActiveWorkoutId] = useState(null);
+  const [activeWorkout, setActiveWorkout] = useState(null);
+  const [restSeconds, setRestSeconds] = useState(null);
+  const [restTotal, setRestTotal] = useState(60);
 
   useEffect(() => {
-    loadAppData().then((data) => {
-      setAppData(data);
-      setLoading(false);
-    });
+    loadAppData().then((loaded) => setAppData(loaded));
   }, []);
 
   const persist = (nextData) => {
@@ -32,227 +27,185 @@ export default function App() {
     saveAppData(nextData);
   };
 
-  const handleCreateWorkout = (newWorkout) => {
+  const handleFinishWorkout = (sessionRecord) => {
     persist({
       ...appData,
-      workouts: [...appData.workouts, newWorkout],
+      history: [sessionRecord, ...appData.history],
     });
+    setActiveWorkout(null);
+    setRestSeconds(null);
+    setActiveTab('evolucao');
   };
 
-  const handleUpdateWorkout = (updatedWorkout) => {
-    const workouts = appData.workouts.map((w) =>
-      w.id === updatedWorkout.id ? updatedWorkout : w
-    );
-    persist({ ...appData, workouts });
-  };
-
-  const handleFinishWorkout = (finishedWorkout) => {
-    let totalVolume = 0;
-    let completedSetsCount = 0;
-
-    const resetExercises = finishedWorkout.exercises.map((ex) => {
-      const resetSets = ex.sets.map((s) => {
-        if (s.done) {
-          completedSetsCount += 1;
-          if (ex.mode === 'reps') {
-            totalVolume += (parseFloat(s.weight) || 0) * (parseInt(s.reps, 10) || 0);
-          }
-        }
-        return { ...s, done: false };
-      });
-
-      const lastSet = ex.sets[ex.sets.length - 1];
-      const updatedRecord =
-        ex.mode === 'time'
-          ? `${ex.sets.length}×${lastSet?.seconds || 45}s`
-          : `${lastSet?.weight || 0}kg • ${ex.sets.length}×${lastSet?.reps || 10}`;
-
-      return {
-        ...ex,
-        lastRecord: updatedRecord,
-        sets: resetSets,
-      };
-    });
-
-    const resetWorkout = { ...finishedWorkout, exercises: resetExercises };
-
-    const remaining = appData.workouts.filter((w) => w.id !== finishedWorkout.id);
-    const nextQueue = [...remaining, resetWorkout];
-
-    const now = new Date();
-    const monthKey = now.toISOString().slice(0, 7);
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const dateLabel = `${String(now.getDate()).padStart(2, '0')} ${months[now.getMonth()]}`;
-
-    const newSession = {
-      id: 'h_' + Date.now(),
-      monthKey,
-      dateLabel,
-      workoutName: finishedWorkout.name,
-      color: finishedWorkout.color || COLORS.orange,
-      volumeKg: Math.round(totalVolume),
-      durationMin: 40,
-      summary:
-        finishedWorkout.type === 'cardio'
-          ? 'Cardio Intervalado concluído'
-          : `${finishedWorkout.exercises.length} exercícios • ${completedSetsCount} séries feitas`,
-    };
-
+  const handleDeleteSession = (sessionId) => {
     persist({
       ...appData,
-      workouts: nextQueue,
-      history: [newSession, ...appData.history],
+      history: appData.history.filter((item) => item.id !== sessionId),
     });
-
-    setActiveWorkoutId(null);
-    setActiveTab('treinos');
   };
 
-  const handleSaveBody = (updatedProfile, newEntry) => {
+  const handleClearMonthHistory = (month, year) => {
     persist({
       ...appData,
-      bodyProfile: updatedProfile,
-      bodyHistory: [newEntry, ...appData.bodyHistory],
+      history: appData.history.filter((item) => {
+        const d = new Date(item.timestamp);
+        return !(d.getMonth() === month && d.getFullYear() === year);
+      }),
     });
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={COLORS.orange} />
-      </View>
-    );
-  }
+  const handleSaveBody = (record) => {
+    persist({
+      ...appData,
+      bodyHistory: [record, ...appData.bodyHistory],
+    });
+  };
 
-  const activeWorkout = appData.workouts.find((w) => w.id === activeWorkoutId);
+  const handleDeleteBodyRecord = (entryId) => {
+    persist({
+      ...appData,
+      bodyHistory: appData.bodyHistory.filter((item) => item.id !== entryId),
+    });
+  };
+
+  const handleClearBodyHistory = () => {
+    persist({
+      ...appData,
+      bodyHistory: [],
+    });
+  };
+
+  const startRest = (sec) => {
+    setRestTotal(sec);
+    setRestSeconds(sec);
+  };
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <StatusBar style="light" backgroundColor={COLORS.bg} />
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
+      <View style={styles.body}>
         {activeWorkout ? (
           <WorkoutScreen
             workout={activeWorkout}
-            onBack={() => setActiveWorkoutId(null)}
-            onUpdateWorkout={handleUpdateWorkout}
-            onFinishWorkout={handleFinishWorkout}
+            onFinish={handleFinishWorkout}
+            onCancel={() => {
+              setActiveWorkout(null);
+              setRestSeconds(null);
+            }}
+            onStartRest={startRest}
           />
         ) : (
           <>
-            <View style={{ flex: 1 }}>
-              {activeTab === 'treinos' && (
-                <HomeScreen
-                  workouts={appData.workouts}
-                  onSelectWorkout={(id) => setActiveWorkoutId(id)}
-                  onCreateWorkout={handleCreateWorkout}
-                />
-              )}
-              {activeTab === 'evolucao' && <EvolutionScreen history={appData.history} />}
-              {activeTab === 'fichas' && (
-                <SheetsScreen
-                  appData={appData}
-                  onUpdateWorkouts={(workouts) => persist({ ...appData, workouts })}
-                  onRestoreBackup={(restored) => persist(restored)}
-                />
-              )}
-              {activeTab === 'corpo' && (
-                <BodyScreen
-                  profile={appData.bodyProfile}
-                  history={appData.bodyHistory}
-                  onSaveRecord={handleSaveBody}
-                />
-              )}
-            </View>
-
-            <View style={styles.tabBar}>
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => setActiveTab('treinos')}
-              >
-                <Dumbbell
-                  size={21}
-                  color={activeTab === 'treinos' ? COLORS.orange : COLORS.textDim}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'treinos' && { color: COLORS.orange },
-                  ]}
-                >
-                  Treinos
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => setActiveTab('evolucao')}
-              >
-                <BarChart3
-                  size={21}
-                  color={activeTab === 'evolucao' ? COLORS.orange : COLORS.textDim}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'evolucao' && { color: COLORS.orange },
-                  ]}
-                >
-                  Evolução
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => setActiveTab('fichas')}
-              >
-                <FolderKanban
-                  size={21}
-                  color={activeTab === 'fichas' ? COLORS.orange : COLORS.textDim}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'fichas' && { color: COLORS.orange },
-                  ]}
-                >
-                  Fichas
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => setActiveTab('corpo')}
-              >
-                <User
-                  size={21}
-                  color={activeTab === 'corpo' ? COLORS.orange : COLORS.textDim}
-                />
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === 'corpo' && { color: COLORS.orange },
-                  ]}
-                >
-                  Corpo
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {activeTab === 'treinos' && (
+              <HomeScreen
+                workouts={appData.workouts}
+                history={appData.history}
+                onStartWorkout={(w) => setActiveWorkout(w)}
+              />
+            )}
+            {activeTab === 'evolucao' && (
+              <EvolutionScreen
+                history={appData.history}
+                onDeleteSession={handleDeleteSession}
+                onClearMonthHistory={handleClearMonthHistory}
+              />
+            )}
+            {activeTab === 'fichas' && (
+              <SheetsScreen
+                appData={appData}
+                onUpdateWorkouts={(workouts) => persist({ ...appData, workouts })}
+                onImportAllData={(imported) => persist(imported)}
+              />
+            )}
+            {activeTab === 'corpo' && (
+              <BodyScreen
+                profile={appData.bodyProfile}
+                history={appData.bodyHistory}
+                onSaveRecord={handleSaveBody}
+                onDeleteRecord={handleDeleteBodyRecord}
+                onClearBodyHistory={handleClearBodyHistory}
+              />
+            )}
           </>
         )}
-      </SafeAreaView>
-    </SafeAreaProvider>
+      </View>
+
+      {restSeconds !== null && (
+        <RestBar
+          secondsLeft={restSeconds}
+          totalSeconds={restTotal}
+          onAddTime={(extra) => {
+            setRestSeconds((prev) => (prev || 0) + extra);
+            setRestTotal((prev) => prev + extra);
+          }}
+          onDismiss={() => setRestSeconds(null)}
+          onTick={() => setRestSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))}
+        />
+      )}
+
+      {!activeWorkout && (
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('treinos')}
+          >
+            <Dumbbell
+              size={20}
+              color={activeTab === 'treinos' ? COLORS.orange : COLORS.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === 'treinos' && styles.tabTextActive]}>
+              Treinos
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('evolucao')}
+          >
+            <BarChart2
+              size={20}
+              color={activeTab === 'evolucao' ? COLORS.orange : COLORS.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === 'evolucao' && styles.tabTextActive]}>
+              Evolução
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('fichas')}
+          >
+            <FolderOpen
+              size={20}
+              color={activeTab === 'fichas' ? COLORS.orange : COLORS.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === 'fichas' && styles.tabTextActive]}>
+              Fichas
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('corpo')}
+          >
+            <User
+              size={20}
+              color={activeTab === 'corpo' ? COLORS.orange : COLORS.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === 'corpo' && styles.tabTextActive]}>
+              Corpo
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  loadingScreen: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  body: { flex: 1 },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: COLORS.card,
@@ -260,15 +213,8 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingVertical: 8,
   },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textDim,
-  },
+  tabItem: { flex: 1, alignItems: 'center', gap: 3 },
+  tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+  tabTextActive: { color: COLORS.orange, fontWeight: '800' },
 });
+                                      
