@@ -1,5 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, Component } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  SafeAreaView,
+  ScrollView,
+} from 'react-native';
 import { Dumbbell, BarChart2, FolderOpen, User } from 'lucide-react-native';
 import { COLORS } from './colors';
 import { INITIAL_DATA } from './initialData';
@@ -11,6 +19,47 @@ import SheetsScreen from './SheetsScreen';
 import BodyScreen from './BodyScreen';
 import RestBar from './RestBar';
 
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      errorMessage: error?.message || 'Erro inesperado na tela',
+    };
+  }
+
+  componentDidCatch(error, info) {
+    console.log('ForjaFit ErrorBoundary:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={styles.errBox}>
+            <Text style={styles.errTitle}>Ops! Ocorreu um erro na tela</Text>
+            <Text style={styles.errMsg}>{this.state.errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.errBtn}
+              onPress={() => {
+                this.setState({ hasError: false, errorMessage: '' });
+                if (this.props.onReset) this.props.onReset();
+              }}
+            >
+              <Text style={styles.errBtnText}>VOLTAR PARA TREINOS</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [appData, setAppData] = useState(INITIAL_DATA);
   const [activeTab, setActiveTab] = useState('treinos');
@@ -19,7 +68,9 @@ export default function App() {
   const [restTotal, setRestTotal] = useState(60);
 
   useEffect(() => {
-    loadAppData().then((loaded) => setAppData(loaded));
+    loadAppData().then((loaded) => {
+      if (loaded) setAppData(loaded);
+    });
   }, []);
 
   const persist = (nextData) => {
@@ -28,9 +79,10 @@ export default function App() {
   };
 
   const handleFinishWorkout = (sessionRecord) => {
+    const currentHistory = Array.isArray(appData?.history) ? appData.history : [];
     persist({
       ...appData,
-      history: [sessionRecord, ...appData.history],
+      history: [sessionRecord, ...currentHistory],
     });
     setActiveWorkout(null);
     setRestSeconds(null);
@@ -38,33 +90,37 @@ export default function App() {
   };
 
   const handleDeleteSession = (sessionId) => {
+    const currentHistory = Array.isArray(appData?.history) ? appData.history : [];
     persist({
       ...appData,
-      history: appData.history.filter((item) => item.id !== sessionId),
+      history: currentHistory.filter((item) => item.id !== sessionId),
     });
   };
 
   const handleClearMonthHistory = (month, year) => {
+    const currentHistory = Array.isArray(appData?.history) ? appData.history : [];
     persist({
       ...appData,
-      history: appData.history.filter((item) => {
-        const d = new Date(item.timestamp);
+      history: currentHistory.filter((item) => {
+        const d = new Date(item?.timestamp || 0);
         return !(d.getMonth() === month && d.getFullYear() === year);
       }),
     });
   };
 
   const handleSaveBody = (record) => {
+    const currentBody = Array.isArray(appData?.bodyHistory) ? appData.bodyHistory : [];
     persist({
       ...appData,
-      bodyHistory: [record, ...appData.bodyHistory],
+      bodyHistory: [record, ...currentBody],
     });
   };
 
   const handleDeleteBodyRecord = (entryId) => {
+    const currentBody = Array.isArray(appData?.bodyHistory) ? appData.bodyHistory : [];
     persist({
       ...appData,
-      bodyHistory: appData.bodyHistory.filter((item) => item.id !== entryId),
+      bodyHistory: currentBody.filter((item) => item.id !== entryId),
     });
   };
 
@@ -76,130 +132,144 @@ export default function App() {
   };
 
   const startRest = (sec) => {
-    setRestTotal(sec);
-    setRestSeconds(sec);
+    const safe = Math.max(1, Number(sec) || 60);
+    setRestTotal(safe);
+    setRestSeconds(safe);
+  };
+
+  const resetToHome = () => {
+    setActiveWorkout(null);
+    setRestSeconds(null);
+    setActiveTab('treinos');
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+    <ErrorBoundary onReset={resetToHome}>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
-      <View style={styles.body}>
-        {activeWorkout ? (
-          <WorkoutScreen
-            workout={activeWorkout}
-            onFinish={handleFinishWorkout}
-            onCancel={() => {
-              setActiveWorkout(null);
-              setRestSeconds(null);
-            }}
-            onStartRest={startRest}
-          />
-        ) : (
-          <>
-            {activeTab === 'treinos' && (
-              <HomeScreen
-                workouts={appData.workouts}
-                history={appData.history}
-                onStartWorkout={(w) => setActiveWorkout(w)}
-              />
-            )}
-            {activeTab === 'evolucao' && (
-              <EvolutionScreen
-                history={appData.history}
-                onDeleteSession={handleDeleteSession}
-                onClearMonthHistory={handleClearMonthHistory}
-              />
-            )}
-            {activeTab === 'fichas' && (
-              <SheetsScreen
-                appData={appData}
-                onUpdateWorkouts={(workouts) => persist({ ...appData, workouts })}
-                onImportAllData={(imported) => persist(imported)}
-              />
-            )}
-            {activeTab === 'corpo' && (
-              <BodyScreen
-                profile={appData.bodyProfile}
-                history={appData.bodyHistory}
-                onSaveRecord={handleSaveBody}
-                onDeleteRecord={handleDeleteBodyRecord}
-                onClearBodyHistory={handleClearBodyHistory}
-              />
-            )}
-          </>
-        )}
-      </View>
-
-      {restSeconds !== null && (
-        <RestBar
-          secondsLeft={restSeconds}
-          totalSeconds={restTotal}
-          onAddTime={(extra) => {
-            setRestSeconds((prev) => (prev || 0) + extra);
-            setRestTotal((prev) => prev + extra);
-          }}
-          onDismiss={() => setRestSeconds(null)}
-          onTick={() => setRestSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))}
-        />
-      )}
-
-      {!activeWorkout && (
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('treinos')}
-          >
-            <Dumbbell
-              size={20}
-              color={activeTab === 'treinos' ? COLORS.orange : COLORS.textMuted}
+        <View style={styles.body}>
+          {activeWorkout ? (
+            <WorkoutScreen
+              key={activeWorkout.id || 'active-workout'}
+              workout={activeWorkout}
+              onFinish={handleFinishWorkout}
+              onCancel={() => {
+                setActiveWorkout(null);
+                setRestSeconds(null);
+              }}
+              onStartRest={startRest}
             />
-            <Text style={[styles.tabText, activeTab === 'treinos' && styles.tabTextActive]}>
-              Treinos
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('evolucao')}
-          >
-            <BarChart2
-              size={20}
-              color={activeTab === 'evolucao' ? COLORS.orange : COLORS.textMuted}
-            />
-            <Text style={[styles.tabText, activeTab === 'evolucao' && styles.tabTextActive]}>
-              Evolução
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('fichas')}
-          >
-            <FolderOpen
-              size={20}
-              color={activeTab === 'fichas' ? COLORS.orange : COLORS.textMuted}
-            />
-            <Text style={[styles.tabText, activeTab === 'fichas' && styles.tabTextActive]}>
-              Fichas
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('corpo')}
-          >
-            <User
-              size={20}
-              color={activeTab === 'corpo' ? COLORS.orange : COLORS.textMuted}
-            />
-            <Text style={[styles.tabText, activeTab === 'corpo' && styles.tabTextActive]}>
-              Corpo
-            </Text>
-          </TouchableOpacity>
+          ) : (
+            <>
+              {activeTab === 'treinos' && (
+                <HomeScreen
+                  workouts={appData?.workouts || INITIAL_DATA.workouts}
+                  history={appData?.history || []}
+                  onStartWorkout={(w) => {
+                    if (w && typeof w === 'object') {
+                      setActiveWorkout(w);
+                    }
+                  }}
+                />
+              )}
+              {activeTab === 'evolucao' && (
+                <EvolutionScreen
+                  history={appData?.history || []}
+                  onDeleteSession={handleDeleteSession}
+                  onClearMonthHistory={handleClearMonthHistory}
+                />
+              )}
+              {activeTab === 'fichas' && (
+                <SheetsScreen
+                  appData={appData}
+                  onUpdateWorkouts={(workouts) => persist({ ...appData, workouts })}
+                  onImportAllData={(imported) => persist(imported)}
+                />
+              )}
+              {activeTab === 'corpo' && (
+                <BodyScreen
+                  profile={appData?.bodyProfile || INITIAL_DATA.bodyProfile}
+                  history={appData?.bodyHistory || []}
+                  onSaveRecord={handleSaveBody}
+                  onDeleteRecord={handleDeleteBodyRecord}
+                  onClearBodyHistory={handleClearBodyHistory}
+                />
+              )}
+            </>
+          )}
         </View>
-      )}
-    </SafeAreaView>
+
+        {restSeconds !== null && (
+          <RestBar
+            secondsLeft={restSeconds}
+            totalSeconds={restTotal}
+            onAddTime={(extra) => {
+              setRestSeconds((prev) => (prev || 0) + extra);
+              setRestTotal((prev) => prev + extra);
+            }}
+            onDismiss={() => setRestSeconds(null)}
+            onTick={() => setRestSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))}
+          />
+        )}
+
+        {!activeWorkout && (
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('treinos')}
+            >
+              <Dumbbell
+                size={20}
+                color={activeTab === 'treinos' ? COLORS.orange : COLORS.textMuted}
+              />
+              <Text style={[styles.tabText, activeTab === 'treinos' && styles.tabTextActive]}>
+                Treinos
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('evolucao')}
+            >
+              <BarChart2
+                size={20}
+                color={activeTab === 'evolucao' ? COLORS.orange : COLORS.textMuted}
+              />
+              <Text style={[styles.tabText, activeTab === 'evolucao' && styles.tabTextActive]}>
+                Evolução
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('fichas')}
+            >
+              <FolderOpen
+                size={20}
+                color={activeTab === 'fichas' ? COLORS.orange : COLORS.textMuted}
+              />
+              <Text style={[styles.tabText, activeTab === 'fichas' && styles.tabTextActive]}>
+                Fichas
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('corpo')}
+            >
+              <User
+                size={20}
+                color={activeTab === 'corpo' ? COLORS.orange : COLORS.textMuted}
+              />
+              <Text style={[styles.tabText, activeTab === 'corpo' && styles.tabTextActive]}>
+                Corpo
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 
@@ -216,5 +286,33 @@ const styles = StyleSheet.create({
   tabItem: { flex: 1, alignItems: 'center', gap: 3 },
   tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   tabTextActive: { color: COLORS.orange, fontWeight: '800' },
+  errBox: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errTitle: {
+    color: COLORS.orange,
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  errMsg: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errBtn: {
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  errBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 13,
+  },
 });
-                                      
