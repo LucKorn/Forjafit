@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { ChevronLeft, ChevronRight, Calendar, Trash2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react-native';
 import { COLORS } from './colors';
 import { triggerLightTap } from './feedback';
 
@@ -9,10 +9,12 @@ const MONTH_NAMES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-export default function EvolutionScreen({ history, onDeleteSession, onClearMonthHistory }) {
+export default function EvolutionScreen({ history = [], onDeleteSession, onClearMonthHistory }) {
+  const safeHistory = Array.isArray(history) ? history : [];
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [filterCode, setFilterCode] = useState('Todos');
 
   const changeMonth = (delta) => {
     triggerLightTap();
@@ -29,35 +31,46 @@ export default function EvolutionScreen({ history, onDeleteSession, onClearMonth
     setSelectedYear(y);
   };
 
-  const monthSessions = useMemo(() => {
-    return history.filter((item) => {
-      const d = new Date(item.timestamp);
+  const monthAllSessions = useMemo(() => {
+    return safeHistory.filter((item) => {
+      const d = new Date(item?.timestamp || 0);
       return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
     });
-  }, [history, selectedMonth, selectedYear]);
+  }, [safeHistory, selectedMonth, selectedYear]);
+
+  const filteredSessions = useMemo(() => {
+    if (filterCode === 'Todos') return monthAllSessions;
+    return monthAllSessions.filter((s) => {
+      const code = String(s?.workoutCode || s?.workoutName || '');
+      if (filterCode === 'Tr. A') return /a|empurrar/i.test(code);
+      if (filterCode === 'Tr. B') return /b|puxar/i.test(code);
+      return true;
+    });
+  }, [monthAllSessions, filterCode]);
 
   const totalVolume = useMemo(
-    () => monthSessions.reduce((sum, s) => sum + (s.volumeKg || 0), 0),
-    [monthSessions]
+    () => filteredSessions.reduce((sum, s) => sum + (Number(s?.volumeKg) || 0), 0),
+    [filteredSessions]
   );
 
-  const weeklyCounts = useMemo(() => {
+  const weeklyTons = useMemo(() => {
     const weeks = [0, 0, 0, 0];
-    monthSessions.forEach((s) => {
-      const day = new Date(s.timestamp).getDate();
+    filteredSessions.forEach((s) => {
+      const day = new Date(s?.timestamp || 0).getDate();
       const idx = Math.min(3, Math.floor((day - 1) / 7));
-      weeks[idx] += 1;
+      weeks[idx] += Number(s?.volumeKg) || 0;
     });
-    return weeks;
-  }, [monthSessions]);
+    return weeks.map((kg) => Number((kg / 1000).toFixed(1)));
+  }, [filteredSessions]);
 
-  const maxWeek = Math.max(4, ...weeklyCounts);
+  const maxTon = Math.max(1, ...weeklyTons);
+  const avgWeeklyKg = Math.round(totalVolume / 4);
 
-  const confirmDeleteSession = (session) => {
+  const confirmDelete = (session) => {
     triggerLightTap();
     Alert.alert(
       'Excluir Treino Realizado',
-      `Deseja remover "${session.workoutName}" (${session.dateLabel}) do histórico?`,
+      `Deseja remover "${session.workoutName}" (${session.dateLabel})?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -72,8 +85,8 @@ export default function EvolutionScreen({ history, onDeleteSession, onClearMonth
   const confirmClearMonth = () => {
     triggerLightTap();
     Alert.alert(
-      'Limpar Histórico do Mês',
-      `Deseja excluir todos os ${monthSessions.length} registros de ${MONTH_NAMES[selectedMonth]} ${selectedYear}?`,
+      'Limpar Mês',
+      `Excluir todos os ${monthAllSessions.length} registros de ${MONTH_NAMES[selectedMonth]} ${selectedYear}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -88,101 +101,154 @@ export default function EvolutionScreen({ history, onDeleteSession, onClearMonth
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Evolução Mensal</Text>
-      <Text style={styles.subtitle}>Histórico de sessões e volume levantado</Text>
-
-      <View style={styles.monthSelector}>
-        <TouchableOpacity style={styles.navBtn} onPress={() => changeMonth(-1)}>
+      <View style={styles.monthCard}>
+        <TouchableOpacity style={styles.arrowBtn} onPress={() => changeMonth(-1)}>
           <ChevronLeft size={18} color={COLORS.text} />
         </TouchableOpacity>
-        <View style={styles.monthLabelBox}>
-          <Calendar size={16} color={COLORS.orange} />
-          <Text style={styles.monthLabel}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.monthEyebrow}>MÊS SELECIONADO</Text>
+          <Text style={styles.monthTitle}>
             {MONTH_NAMES[selectedMonth]} {selectedYear}
           </Text>
         </View>
-        <TouchableOpacity style={styles.navBtn} onPress={() => changeMonth(1)}>
+        <TouchableOpacity style={styles.arrowBtn} onPress={() => changeMonth(1)}>
           <ChevronRight size={18} color={COLORS.text} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{monthSessions.length}</Text>
-          <Text style={styles.metricLabel}>Treinos no mês</Text>
+      <View style={styles.kpiRow}>
+        <View style={styles.kpiBox}>
+          <Text style={styles.kpiLabel}>TREINOS</Text>
+          <Text style={styles.kpiValue}>{filteredSessions.length}</Text>
+          <Text style={[styles.kpiSub, { color: COLORS.green }]}>Concluídos</Text>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{totalVolume.toLocaleString('pt-BR')} kg</Text>
-          <Text style={styles.metricLabel}>Volume total</Text>
+
+        <View style={styles.kpiBox}>
+          <Text style={styles.kpiLabel}>VOLUME MÊS</Text>
+          <Text style={[styles.kpiValue, { color: COLORS.orange, fontSize: 17 }]}>
+            {totalVolume.toLocaleString('pt-BR')} kg
+          </Text>
+          <Text style={styles.kpiSub}>Acumulado</Text>
+        </View>
+
+        <View style={styles.kpiBox}>
+          <Text style={styles.kpiLabel}>MÉDIA SEM.</Text>
+          <Text style={[styles.kpiValue, { color: COLORS.amber, fontSize: 17 }]}>
+            {avgWeeklyKg.toLocaleString('pt-BR')} kg
+          </Text>
+          <Text style={styles.kpiSub}>Por semana</Text>
         </View>
       </View>
 
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>
-          Consistência Semanal ({MONTH_NAMES[selectedMonth]} {selectedYear})
-        </Text>
-        <View style={styles.barsRow}>
-          {weeklyCounts.map((count, i) => {
-            const pct = Math.round((count / maxWeek) * 100);
+        <View style={styles.chartTop}>
+          <View>
+            <Text style={styles.chartTitle}>Semanas do Mês</Text>
+            <Text style={styles.chartSub}>
+              {MONTH_NAMES[selectedMonth]} {selectedYear}
+            </Text>
+          </View>
+
+          <View style={styles.filterGroup}>
+            {['Todos', 'Tr. A', 'Tr. B'].map((pill) => {
+              const active = filterCode === pill;
+              return (
+                <TouchableOpacity
+                  key={pill}
+                  style={[styles.filterPill, active && styles.filterPillActive]}
+                  onPress={() => {
+                    triggerLightTap();
+                    setFilterCode(pill);
+                  }}
+                >
+                  <Text
+                    style={[styles.filterText, active && styles.filterTextActive]}
+                  >
+                    {pill}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.barsContainer}>
+          {weeklyTons.map((ton, idx) => {
+            const pct = Math.round((ton / maxTon) * 100);
             return (
-              <View key={i} style={styles.barCol}>
+              <View key={idx} style={styles.barColumn}>
+                <Text style={styles.barValue}>{ton.toFixed(1)}t</Text>
                 <View style={styles.barTrack}>
                   <View
                     style={[
                       styles.barFill,
                       {
-                        height: `${Math.max(pct, count > 0 ? 15 : 4)}%`,
-                        backgroundColor: count > 0 ? COLORS.orange : COLORS.borderLight,
+                        height: `${Math.max(pct, ton > 0 ? 18 : 6)}%`,
+                        backgroundColor: ton > 0 ? COLORS.orange : COLORS.borderLight,
                       },
                     ]}
                   />
                 </View>
-                <Text style={styles.barLabel}>Sem {i + 1}</Text>
+                <Text style={[styles.barWeek, ton > 0 && { color: COLORS.orange }]}>
+                  Sem {idx + 1}
+                </Text>
               </View>
             );
           })}
         </View>
       </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
-          SESSÕES REALIZADAS ({monthSessions.length})
-        </Text>
-        {monthSessions.length > 0 && (
-          <TouchableOpacity style={styles.clearAllBtn} onPress={confirmClearMonth}>
-            <Trash2 size={13} color={COLORS.red} />
-            <Text style={styles.clearAllText}>Limpar mês</Text>
-          </TouchableOpacity>
-        )}
+      <View style={styles.sessionsHeader}>
+        <Text style={styles.sessionsTitle}>Sessões do Mês</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredSessions.length} registros</Text>
+          </View>
+          {monthAllSessions.length > 0 && (
+            <TouchableOpacity style={styles.clearBtn} onPress={confirmClearMonth}>
+              <Trash2 size={13} color={COLORS.red} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {monthSessions.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>Nenhuma sessão registrada neste mês.</Text>
+      {filteredSessions.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyText}>Nenhuma sessão registrada neste período.</Text>
         </View>
       ) : (
-        monthSessions.map((session) => (
-          <View key={session.id} style={styles.sessionCard}>
+        filteredSessions.map((session, idx) => (
+          <View
+            key={session?.id || `s-${idx}`}
+            style={[
+              styles.sessionCard,
+              {
+                borderLeftWidth: 3,
+                borderLeftColor:
+                  session.type === 'cardio'
+                    ? COLORS.blue
+                    : /b|puxar/i.test(session.workoutName)
+                    ? COLORS.green
+                    : COLORS.orange,
+              },
+            ]}
+          >
             <View style={{ flex: 1 }}>
-              <Text style={styles.sessionDate}>{session.dateLabel}</Text>
-              <Text style={styles.sessionName}>{session.workoutName}</Text>
-              <Text style={styles.sessionSub}>{session.summaryText}</Text>
+              <View style={styles.sessionTop}>
+                <Text style={styles.sessionName} numberOfLines={1}>
+                  {session.workoutName}
+                </Text>
+                <Text style={styles.sessionDate}>{session.dateLabel}</Text>
+              </View>
+              <Text style={styles.sessionSummary}>{session.summaryText}</Text>
             </View>
 
-            <View style={styles.sessionRight}>
-              {session.volumeKg > 0 ? (
-                <Text style={styles.sessionVol}>{session.volumeKg} kg</Text>
-              ) : (
-                <Text style={[styles.sessionVol, { color: COLORS.blue }]}>Cardio</Text>
-              )}
-
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => confirmDeleteSession(session)}
-              >
-                <Trash2 size={15} color={COLORS.red} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.delBtn}
+              onPress={() => confirmDelete(session)}
+            >
+              <Trash2 size={15} color={COLORS.red} />
+            </TouchableOpacity>
           </View>
         ))
       )}
@@ -192,96 +258,124 @@ export default function EvolutionScreen({ history, onDeleteSession, onClearMonth
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 16, paddingBottom: 32 },
-  title: { color: COLORS.text, fontSize: 22, fontWeight: '800' },
-  subtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2, marginBottom: 14 },
-  monthSelector: {
+  content: { padding: 14, paddingBottom: 32 },
+  monthCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 8,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 12,
   },
-  navBtn: {
+  arrowBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
     backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthLabelBox: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  monthLabel: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  metricsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  metricCard: {
+  monthEyebrow: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+  },
+  monthTitle: { color: COLORS.text, fontSize: 17, fontWeight: '900', marginTop: 2 },
+  kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  kpiBox: {
     flex: 1,
     backgroundColor: COLORS.card,
     borderRadius: 14,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  metricValue: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
-  metricLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  kpiLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  kpiValue: { color: COLORS.text, fontSize: 22, fontWeight: '900', marginTop: 4 },
+  kpiSub: { color: COLORS.textSecondary, fontSize: 11, marginTop: 2 },
   chartCard: {
     backgroundColor: COLORS.card,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 18,
   },
-  chartTitle: { color: COLORS.text, fontSize: 14, fontWeight: '700', marginBottom: 14 },
-  barsRow: {
+  chartTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    gap: 8,
+  },
+  chartTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
+  chartSub: { color: COLORS.textMuted, fontSize: 12, marginTop: 1 },
+  filterGroup: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.bg,
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  filterPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  filterPillActive: { backgroundColor: COLORS.orange },
+  filterText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
+  filterTextActive: { color: '#fff', fontWeight: '800' },
+  barsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-end',
-    height: 110,
+    height: 150,
   },
-  barCol: { alignItems: 'center', gap: 8 },
+  barColumn: { alignItems: 'center', flex: 1 },
+  barValue: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 6 },
   barTrack: {
-    width: 24,
-    height: 86,
-    borderRadius: 8,
-    backgroundColor: COLORS.bg,
+    width: 44,
+    height: 104,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardElevated,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
-  barFill: { width: '100%', borderRadius: 8 },
-  barLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
-  sectionHeader: {
+  barFill: { width: '100%', borderRadius: 10 },
+  barWeek: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  sessionsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  sectionTitle: {
-    color: COLORS.orange,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  clearAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.redDim,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+  sessionsTitle: { color: COLORS.text, fontSize: 17, fontWeight: '800' },
+  countPill: {
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  clearAllText: {
-    color: COLORS.red,
-    fontSize: 11,
-    fontWeight: '700',
+  countPillText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' },
+  clearBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: COLORS.redDim,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  emptyCard: {
+  emptyBox: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
     padding: 20,
@@ -293,7 +387,6 @@ const styles = StyleSheet.create({
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: COLORS.card,
     borderRadius: 14,
     padding: 14,
@@ -302,24 +395,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 10,
   },
-  sessionDate: { color: COLORS.orange, fontSize: 12, fontWeight: '700' },
-  sessionName: { color: COLORS.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
-  sessionSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
-  sessionRight: {
+  sessionTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  sessionVol: { color: COLORS.green, fontSize: 15, fontWeight: '800' },
-  deleteBtn: {
+  sessionName: { color: COLORS.text, fontSize: 15, fontWeight: '800', flex: 1 },
+  sessionDate: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700' },
+  sessionSummary: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4, lineHeight: 17 },
+  delBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
     backgroundColor: COLORS.cardElevated,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
-            
+    
