@@ -35,46 +35,52 @@ export default function RestBar({ secondsLeft, totalSeconds, onAddTime, onDismis
             styles.progressFill,
             {
               width: `${progress * 100}%`,
-              backgroundColor: isDone ? COLORS.green : COLORS.orange,
+              backgroundColor: isDone ? '#22c55e' : '#ff7a1a',
             },
           ]}
         />
       </View>
+
       <View style={styles.row}>
         <View style={styles.left}>
-          {isDone ? (
-            <CheckCircle2 size={20} color={COLORS.green} />
-          ) : (
-            <Timer size={20} color={COLORS.orange} />
-          )}
+          <View style={[styles.iconBadge, isDone && styles.iconBadgeDone]}>
+            {isDone ? (
+              <CheckCircle2 size={22} color="#ffffff" />
+            ) : (
+              <Timer size={22} color="#ffffff" />
+            )}
+          </View>
+
           <View>
-            <Text style={styles.label}>
+            <Text style={[styles.label, isDone && styles.labelDone]}>
               {isDone ? 'DESCANSO CONCLUÍDO!' : 'DESCANSO EM ANDAMENTO'}
             </Text>
-            <Text style={[styles.time, isDone && { color: COLORS.green }]}>{formatted}</Text>
+            <Text style={[styles.time, isDone && styles.timeDone]}>{formatted}</Text>
           </View>
         </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.addBtn}
+            activeOpacity={0.8}
             onPress={() => {
               triggerLightTap();
               if (onAddTime) onAddTime(15);
             }}
           >
-            <Plus size={14} color={COLORS.text} />
+            <Plus size={15} color="#ffffff" />
             <Text style={styles.addBtnText}>15s</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.closeBtn}
+            activeOpacity={0.8}
             onPress={() => {
               triggerLightTap();
               if (onDismiss) onDismiss();
             }}
           >
-            <X size={16} color={COLORS.textSecondary} />
+            <X size={18} color="#ffffff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -84,48 +90,69 @@ export default function RestBar({ secondsLeft, totalSeconds, onAddTime, onDismis
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.cardElevated,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.orangeBorder,
+    backgroundColor: '#1d1d22',
+    borderTopWidth: 2,
+    borderTopColor: '#ff7a1a',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   containerDone: {
-    borderTopColor: COLORS.green,
-    backgroundColor: '#0c1f17',
+    borderTopColor: '#22c55e',
+    backgroundColor: '#0e291d',
   },
   progressTrack: {
-    height: 3,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
+    height: 4,
+    backgroundColor: '#32323a',
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
   left: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+    flex: 1,
+  },
+  iconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#ea580c',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBadgeDone: {
+    backgroundColor: '#16a34a',
   },
   label: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
+    color: '#fdba74',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  labelDone: {
+    color: '#86efac',
   },
   time: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: '800',
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginTop: 1,
+  },
+  timeDone: {
+    color: '#ffffff',
   },
   actions: {
     flexDirection: 'row',
@@ -135,26 +162,26 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    gap: 4,
+    backgroundColor: '#2c2c34',
+    borderWidth: 1.5,
+    borderColor: '#52525b',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   addBtnText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#3a1818',
+    borderWidth: 1.5,
+    borderColor: '#ef4444',
     alignItems: 'center',
     justifyContent: 'center',
   },
