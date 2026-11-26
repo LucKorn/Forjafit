@@ -1,80 +1,81 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Timer } from 'lucide-react-native';
+import { Timer, Plus, X, CheckCircle2 } from 'lucide-react-native';
 import { COLORS } from './colors';
-import { triggerTimerDone } from './feedback';
+import { triggerRestFinishedFeedback, triggerLightTap } from './feedback';
 
-export default function RestBar({ initialSeconds, triggerId, onDismiss }) {
-  const [total, setTotal] = useState(initialSeconds || 60);
-  const [remaining, setRemaining] = useState(initialSeconds || 60);
-
-  useEffect(() => {
-    if (!triggerId) return;
-    setTotal(initialSeconds || 60);
-    setRemaining(initialSeconds || 60);
-  }, [triggerId, initialSeconds]);
+export default function RestBar({ secondsLeft, totalSeconds, onAddTime, onDismiss, onTick }) {
+  const firedRef = useRef(false);
 
   useEffect(() => {
-    if (!triggerId) return;
-    const interval = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          triggerTimerDone();
-          onDismiss();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [triggerId]);
+    if (secondsLeft > 0) {
+      firedRef.current = false;
+      const timer = setInterval(() => {
+        if (onTick) onTick();
+      }, 1000);
+      return () => clearInterval(timer);
+    } else if (secondsLeft === 0 && !firedRef.current) {
+      firedRef.current = true;
+      triggerRestFinishedFeedback();
+    }
+  }, [secondsLeft, onTick]);
 
-  if (!triggerId) return null;
-
-  const adjust = (delta) => {
-    setRemaining((prev) => {
-      const next = Math.max(5, prev + delta);
-      if (next > total) setTotal(next);
-      return next;
-    });
-  };
-
-  const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
-  const secs = String(remaining % 60).padStart(2, '0');
-  const pct = Math.max(0, Math.min(100, (remaining / Math.max(1, total)) * 100));
+  const safeSec = Math.max(0, Number(secondsLeft) || 0);
+  const mins = Math.floor(safeSec / 60);
+  const secs = safeSec % 60;
+  const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const progress = totalSeconds > 0 ? Math.max(0, Math.min(1, safeSec / totalSeconds)) : 0;
+  const isDone = safeSec === 0;
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.container}>
-        <View style={styles.topRow}>
-          <View style={styles.leftInfo}>
-            <View style={styles.iconBox}>
-              <Timer size={18} color={COLORS.orange} />
-            </View>
-            <View>
-              <Text style={styles.label}>DESCANSO</Text>
-              <Text style={styles.clock}>
-                {mins}:{secs}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.controls}>
-            <TouchableOpacity style={styles.adjBtn} onPress={() => adjust(-15)}>
-              <Text style={styles.adjText}>-15s</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.adjBtn} onPress={() => adjust(15)}>
-              <Text style={styles.adjText}>+15s</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.skipBtn} onPress={onDismiss}>
-              <Text style={styles.skipText}>Pular</Text>
-            </TouchableOpacity>
+    <View style={[styles.container, isDone && styles.containerDone]}>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            {
+              width: `${progress * 100}%`,
+              backgroundColor: isDone ? COLORS.green : COLORS.orange,
+            },
+          ]}
+        />
+      </View>
+      <View style={styles.row}>
+        <View style={styles.left}>
+          {isDone ? (
+            <CheckCircle2 size={20} color={COLORS.green} />
+          ) : (
+            <Timer size={20} color={COLORS.orange} />
+          )}
+          <View>
+            <Text style={styles.label}>
+              {isDone ? 'DESCANSO CONCLUÍDO!' : 'DESCANSO EM ANDAMENTO'}
+            </Text>
+            <Text style={[styles.time, isDone && { color: COLORS.green }]}>{formatted}</Text>
           </View>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${pct}%` }]} />
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => {
+              triggerLightTap();
+              if (onAddTime) onAddTime(15);
+            }}
+          >
+            <Plus size={14} color={COLORS.text} />
+            <Text style={styles.addBtnText}>15s</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={() => {
+              triggerLightTap();
+              if (onDismiss) onDismiss();
+            }}
+          >
+            <X size={16} color={COLORS.textSecondary} />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -82,97 +83,80 @@ export default function RestBar({ initialSeconds, triggerId, onDismiss }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    right: 12,
-    zIndex: 50,
-  },
   container: {
-    backgroundColor: '#16161a',
-    borderWidth: 1.5,
-    borderColor: COLORS.orange,
-    borderRadius: 18,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.55,
-    shadowRadius: 10,
-    elevation: 10,
+    backgroundColor: COLORS.cardElevated,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.orangeBorder,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
-  topRow: {
+  containerDone: {
+    borderTopColor: COLORS.green,
+    backgroundColor: '#0c1f17',
+  },
+  progressTrack: {
+    height: 3,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  leftInfo: {
+  left: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  iconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: COLORS.orangeBg,
-    borderWidth: 1,
-    borderColor: COLORS.orangeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   label: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: COLORS.orange,
-    letterSpacing: 0.8,
+    color: COLORS.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
   },
-  clock: {
-    fontSize: 20,
-    fontWeight: '900',
+  time: {
     color: COLORS.text,
-    fontVariant: ['tabular-nums'],
+    fontSize: 20,
+    fontWeight: '800',
   },
-  controls: {
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  adjBtn: {
-    backgroundColor: COLORS.cardElevated,
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  adjText: {
+  addBtnText: {
     color: COLORS.text,
     fontSize: 12,
     fontWeight: '700',
   },
-  skipBtn: {
-    backgroundColor: COLORS.orangeBg,
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.orangeBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  skipText: {
-    color: COLORS.orange,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: '#27272a',
-    borderRadius: 99,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.orange,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
+    
