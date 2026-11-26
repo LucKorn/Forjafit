@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react-native';
 import { COLORS } from './colors';
 import { triggerLightTap } from './feedback';
-import DarkConfirmModal from './DarkConfirmModal';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -16,8 +15,6 @@ export default function EvolutionScreen({ history = [], onDeleteSession, onClear
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [filterCode, setFilterCode] = useState('Todos');
-  const [sessionToDelete, setSessionToDelete] = useState(null);
-  const [clearMonthModalVisible, setClearMonthModalVisible] = useState(false);
 
   const changeMonth = (delta) => {
     triggerLightTap();
@@ -71,12 +68,37 @@ export default function EvolutionScreen({ history = [], onDeleteSession, onClear
 
   const confirmDelete = (session) => {
     triggerLightTap();
-    setSessionToDelete(session);
+    Alert.alert(
+      'Excluir Treino Realizado',
+      `Deseja remover "${session.workoutName}" (${session.dateLabel})?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => onDeleteSession && onDeleteSession(session.id),
+        },
+      ],
+      { userInterfaceStyle: 'dark' }
+    );
   };
 
   const confirmClearMonth = () => {
     triggerLightTap();
-    setClearMonthModalVisible(true);
+    Alert.alert(
+      'Limpar Mês',
+      `Excluir todos os ${monthAllSessions.length} registros de ${MONTH_NAMES[selectedMonth]} ${selectedYear}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir Tudo',
+          style: 'destructive',
+          onPress: () =>
+            onClearMonthHistory && onClearMonthHistory(selectedMonth, selectedYear),
+        },
+      ],
+      { userInterfaceStyle: 'dark' }
+    );
   };
 
   return (
@@ -232,42 +254,6 @@ export default function EvolutionScreen({ history = [], onDeleteSession, onClear
           </View>
         ))
       )}
-
-      <DarkConfirmModal
-        visible={Boolean(sessionToDelete)}
-        title="Excluir Treino Realizado"
-        message={
-          sessionToDelete
-            ? `Deseja remover "${sessionToDelete.workoutName}" (${sessionToDelete.dateLabel})?`
-            : ''
-        }
-        confirmText="Excluir"
-        cancelText="Cancelar"
-        destructive
-        onCancel={() => setSessionToDelete(null)}
-        onConfirm={() => {
-          if (sessionToDelete && onDeleteSession) {
-            onDeleteSession(sessionToDelete.id);
-          }
-          setSessionToDelete(null);
-        }}
-      />
-
-      <DarkConfirmModal
-        visible={clearMonthModalVisible}
-        title="Limpar Mês"
-        message={`Excluir todos os ${monthAllSessions.length} registros de ${MONTH_NAMES[selectedMonth]} ${selectedYear}?`}
-        confirmText="Excluir Tudo"
-        cancelText="Cancelar"
-        destructive
-        onCancel={() => setClearMonthModalVisible(false)}
-        onConfirm={() => {
-          if (onClearMonthHistory) {
-            onClearMonthHistory(selectedMonth, selectedYear);
-          }
-          setClearMonthModalVisible(false);
-        }}
-      />
     </ScrollView>
   );
 }
@@ -429,4 +415,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-  
+            
