@@ -503,4 +503,182 @@ export default function SheetsScreen({
                             <TextInput
                               style={styles.input}
                               keyboardType="numeric"
-          
+                              value={String(ex.restSeconds)}
+                              onChangeText={(t) =>
+                                updateExercise(idx, 'restSeconds', parseInt(t, 10) || 60)
+                              }
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+
+              <TouchableOpacity style={styles.saveBtn} onPress={saveWorkout}>
+                <Check size={18} color="#fff" />
+                <Text style={styles.saveText}>SALVAR FICHA</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  content: { padding: 14, paddingBottom: 32 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  newBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  cardTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
+  cardSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  cardMeta: { color: COLORS.textMuted, fontSize: 12, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: 8 },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  backupRow: { flexDirection: 'row', gap: 10 },
+  backupBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  backupText: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
+  modalWrap: { flex: 1, backgroundColor: COLORS.bg },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
+  modalContent: { padding: 16, paddingBottom: 40 },
+  label: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  miniLabel: { color: COLORS.textMuted, fontSize: 11, marginBottom: 4 },
+  input: {
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: COLORS.text,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  typeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  typeBtnActive: { backgroundColor: COLORS.orangeDim, borderColor: COLORS.orange },
+  typeText: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  modeBtnActive: {
+    backgroundColor: COLORS.orangeDim,
+    borderColor: COLORS.orange,
+  },
+  modeText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700' },
+  modeTextActive: { color: COLORS.orange, fontWeight: '800' },
+  exHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addExBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.orange,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addExText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  exCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  exTop: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  grid3: { flexDirection: 'row', gap: 8 },
+  grid4: { flexDirection: 'row', gap: 6 },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.green,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  saveText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+});
