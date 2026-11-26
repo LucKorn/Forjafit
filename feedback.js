@@ -4,7 +4,6 @@ import { Audio } from 'expo-av';
 
 export const triggerRestFinishedFeedback = async () => {
   try {
-    // Padrão forte de vibração nativa no Android: [espera, vibra, pausa, vibra, pausa, vibra]
     Vibration.vibrate([0, 600, 200, 600, 200, 800]);
   } catch (e) {}
 
@@ -18,7 +17,6 @@ export const triggerRestFinishedFeedback = async () => {
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
     });
-    // Gera um bipe WAV curto em base64 para não depender de arquivo externo
     const sampleRate = 8000;
     const durationSec = 0.35;
     const numSamples = Math.floor(sampleRate * durationSec);
