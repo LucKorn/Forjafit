@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
 } from 'react-native';
-import { Dumbbell, BarChart2, FolderOpen, User } from 'lucide-react-native';
+import { Zap, BarChart2, FileText, User } from 'lucide-react-native';
 import { COLORS } from './colors';
 import { INITIAL_DATA } from './initialData';
 import { loadAppData, saveAppData } from './storage';
@@ -64,6 +64,7 @@ export default function App() {
   const [appData, setAppData] = useState(INITIAL_DATA);
   const [activeTab, setActiveTab] = useState('treinos');
   const [activeWorkout, setActiveWorkout] = useState(null);
+  const [autoOpenNewSheet, setAutoOpenNewSheet] = useState(false);
   const [restSeconds, setRestSeconds] = useState(null);
   const [restTotal, setRestTotal] = useState(60);
 
@@ -108,10 +109,22 @@ export default function App() {
     });
   };
 
-  const handleSaveBody = (record) => {
+  const handleSaveBodyMonth = (record) => {
     const currentBody = Array.isArray(appData?.bodyHistory) ? appData.bodyHistory : [];
+    const nextProfile = {
+      ...(appData?.bodyProfile || INITIAL_DATA.bodyProfile),
+      heightCm: record.heightCm,
+      weightKg: record.weightKg,
+      armCm: record.armCm,
+      chestCm: record.chestCm,
+      waistCm: record.waistCm,
+      abdomenCm: record.abdomenCm,
+      thighCm: record.thighCm,
+      calfCm: record.calfCm,
+    };
     persist({
       ...appData,
+      bodyProfile: nextProfile,
       bodyHistory: [record, ...currentBody],
     });
   };
@@ -171,6 +184,10 @@ export default function App() {
                       setActiveWorkout(w);
                     }
                   }}
+                  onOpenNewWorkout={() => {
+                    setAutoOpenNewSheet(true);
+                    setActiveTab('fichas');
+                  }}
                 />
               )}
               {activeTab === 'evolucao' && (
@@ -185,15 +202,17 @@ export default function App() {
                   appData={appData}
                   onUpdateWorkouts={(workouts) => persist({ ...appData, workouts })}
                   onImportAllData={(imported) => persist(imported)}
+                  autoOpenNew={autoOpenNewSheet}
+                  onConsumeAutoOpen={() => setAutoOpenNewSheet(false)}
                 />
               )}
               {activeTab === 'corpo' && (
                 <BodyScreen
                   profile={appData?.bodyProfile || INITIAL_DATA.bodyProfile}
                   history={appData?.bodyHistory || []}
-                  onSaveRecord={handleSaveBody}
+                  onSaveMonthlyRecord={handleSaveBodyMonth}
                   onDeleteRecord={handleDeleteBodyRecord}
-                  onClearBodyHistory={handleClearBodyHistory}
+                  onClearHistory={handleClearBodyHistory}
                 />
               )}
             </>
@@ -209,7 +228,9 @@ export default function App() {
               setRestTotal((prev) => prev + extra);
             }}
             onDismiss={() => setRestSeconds(null)}
-            onTick={() => setRestSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))}
+            onTick={() =>
+              setRestSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0))
+            }
           />
         )}
 
@@ -219,7 +240,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('treinos')}
             >
-              <Dumbbell
+              <Zap
                 size={20}
                 color={activeTab === 'treinos' ? COLORS.orange : COLORS.textMuted}
               />
@@ -245,7 +266,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('fichas')}
             >
-              <FolderOpen
+              <FileText
                 size={20}
                 color={activeTab === 'fichas' ? COLORS.orange : COLORS.textMuted}
               />
@@ -316,3 +337,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+                               
