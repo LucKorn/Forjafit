@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
 } from 'react-native';
-import { Zap, BarChart2, FileText, User } from 'lucide-react-native';
+import * as Icons from 'lucide-react-native';
 import { COLORS } from './colors';
 import { INITIAL_DATA } from './initialData';
 import { loadAppData, saveAppData } from './storage';
@@ -18,6 +18,11 @@ import EvolutionScreen from './EvolutionScreen';
 import SheetsScreen from './SheetsScreen';
 import BodyScreen from './BodyScreen';
 import RestBar from './RestBar';
+
+const ZapIcon = Icons.Zap || View;
+const ChartIcon = Icons.BarChart2 || Icons.TrendingUp || View;
+const FileIcon = Icons.FileText || Icons.ClipboardList || View;
+const UserIcon = Icons.User || View;
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -219,7 +224,7 @@ export default function App() {
           )}
         </View>
 
-        {restSeconds !== null && (
+        {restSeconds !== null && typeof RestBar === 'function' && (
           <RestBar
             secondsLeft={restSeconds}
             totalSeconds={restTotal}
@@ -240,7 +245,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('treinos')}
             >
-              <Zap
+              <ZapIcon
                 size={20}
                 color={activeTab === 'treinos' ? COLORS.orange : COLORS.textMuted}
               />
@@ -253,7 +258,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('evolucao')}
             >
-              <BarChart2
+              <ChartIcon
                 size={20}
                 color={activeTab === 'evolucao' ? COLORS.orange : COLORS.textMuted}
               />
@@ -266,7 +271,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('fichas')}
             >
-              <FileText
+              <FileIcon
                 size={20}
                 color={activeTab === 'fichas' ? COLORS.orange : COLORS.textMuted}
               />
@@ -279,7 +284,7 @@ export default function App() {
               style={styles.tabItem}
               onPress={() => setActiveTab('corpo')}
             >
-              <User
+              <UserIcon
                 size={20}
                 color={activeTab === 'corpo' ? COLORS.orange : COLORS.textMuted}
               />
@@ -337,4 +342,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
-                               
