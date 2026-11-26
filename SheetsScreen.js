@@ -16,6 +16,35 @@ import * as DocumentPicker from 'expo-document-picker';
 import { COLORS } from './colors';
 import { triggerLightTap } from './feedback';
 
+const hydrateExerciseDrafts = (ex) => {
+  const isIso = Boolean(ex?.isIsometric);
+  const setsCount = Math.max(1, parseInt(ex?.setsCount, 10) || 3);
+  const defaultReps = Math.max(1, parseInt(ex?.defaultReps, 10) || 12);
+  const durationSeconds = Math.max(
+    1,
+    parseInt(ex?.durationSeconds ?? ex?.defaultReps, 10) || 45
+  );
+  const defaultWeight = isIso ? 0 : Number(ex?.defaultWeight) || 0;
+  const restSeconds =
+    ex?.restSeconds !== undefined && ex?.restSeconds !== null && ex?.restSeconds !== ''
+      ? Math.max(0, parseInt(ex.restSeconds, 10) || 0)
+      : 60;
+
+  return {
+    ...ex,
+    setsCount,
+    defaultReps,
+    durationSeconds,
+    defaultWeight,
+    restSeconds,
+    _setsText: String(setsCount),
+    _repsText: String(defaultReps),
+    _secondsText: String(durationSeconds),
+    _weightText: String(defaultWeight),
+    _restText: String(restSeconds),
+  };
+};
+
 export default function SheetsScreen({
   appData,
   onUpdateWorkouts,
@@ -57,7 +86,7 @@ export default function SheetsScreen({
       ...prev,
       exercises: [
         ...(prev?.exercises || []),
-        {
+        hydrateExerciseDrafts({
           id: `ex-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           name: '',
           equipment: 'Halteres',
@@ -69,7 +98,7 @@ export default function SheetsScreen({
           isIsometric: false,
           durationSeconds: 45,
           effort: 'Ideal',
-        },
+        }),
       ],
     }));
   };
@@ -89,17 +118,30 @@ export default function SheetsScreen({
       ...prev,
       exercises: (prev?.exercises || []).map((ex, i) => {
         if (i !== idx) return ex;
-        const secVal = Number(ex.durationSeconds || ex.defaultReps || 45) || 45;
-        const repVal = Number(ex.defaultReps || 12) || 12;
+        const secVal =
+          parseInt(ex._secondsText, 10) ||
+          Number(ex.durationSeconds || ex.defaultReps || 45) ||
+          45;
+        const repVal =
+          parseInt(ex._repsText, 10) || Number(ex.defaultReps || 12) || 12;
+        const setsVal =
+          parseInt(ex._setsText, 10) || Number(ex.setsCount || 3) || 3;
+        const weightVal = isIso
+          ? 0
+          : parseFloat(String(ex._weightText ?? ex.defaultWeight ?? 10).replace(',', '.')) || 0;
+
         return {
           ...ex,
           isIsometric: isIso,
-          durationSeconds: isIso ? secVal : 0,
+          durationSeconds: secVal,
           defaultReps: isIso ? secVal : repVal,
-          defaultWeight: isIso ? 0 : ex.defaultWeight || 10,
+          defaultWeight: weightVal,
+          _secondsText: String(secVal),
+          _repsText: String(repVal),
+          _weightText: String(weightVal),
           lastSummary: isIso
-            ? `${secVal}s • ${ex.setsCount || 3}×${secVal}s`
-            : `${ex.defaultWeight || 10}kg • ${ex.setsCount || 3}×${repVal}`,
+            ? `${secVal}s • ${setsVal}×${secVal}s`
+            : `${weightVal}kg • ${setsVal}×${repVal}`,
         };
       }),
     }));
@@ -126,27 +168,60 @@ export default function SheetsScreen({
         : Number(editingWorkout.durationMin || 40) || 40;
 
     const preparedExercises = (editingWorkout.exercises || []).map((ex) => {
-      const sets = Math.max(1, parseInt(ex.setsCount, 10) || 3);
+      const rawSets = ex._setsText !== undefined ? ex._setsText : ex.setsCount;
+      const sets = Math.max(1, parseInt(String(rawSets), 10) || 3);
+
+      const rawRest = ex._restText !== undefined ? ex._restText : ex.restSeconds;
+      const parsedRest = parseInt(String(rawRest ?? '').trim(), 10);
+      const rest = Number.isNaN(parsedRest) ? 60 : Math.max(0, parsedRest);
+
       if (ex.isIsometric) {
-        const secs = Math.max(1, parseInt(ex.durationSeconds ?? ex.defaultReps, 10) || 45);
+        const rawSec =
+          ex._secondsText !== undefined
+            ? ex._secondsText
+            : ex.durationSeconds ?? ex.defaultReps;
+        const secs = Math.max(1, parseInt(String(rawSec), 10) || 45);
+        const cleanEx = { ...ex };
+        delete cleanEx._setsText;
+        delete cleanEx._repsText;
+        delete cleanEx._secondsText;
+        delete cleanEx._weightText;
+        delete cleanEx._restText;
         return {
-          ...ex,
+          ...cleanEx,
           setsCount: sets,
           isIsometric: true,
           durationSeconds: secs,
           defaultReps: secs,
+          defaultWeight: 0,
+          restSeconds: rest,
           lastSummary: `${secs}s • ${sets}×${secs}s`,
         };
       }
-      const reps = Math.max(1, parseInt(ex.defaultReps, 10) || 12);
-      const weight = Number(ex.defaultWeight) || 0;
+
+      const rawReps = ex._repsText !== undefined ? ex._repsText : ex.defaultReps;
+      const reps = Math.max(1, parseInt(String(rawReps), 10) || 12);
+
+      const rawWeight =
+        ex._weightText !== undefined ? ex._weightText : ex.defaultWeight;
+      const weight =
+        parseFloat(String(rawWeight ?? '0').replace(',', '.').trim()) || 0;
+
+      const cleanEx = { ...ex };
+      delete cleanEx._setsText;
+      delete cleanEx._repsText;
+      delete cleanEx._secondsText;
+      delete cleanEx._weightText;
+      delete cleanEx._restText;
+
       return {
-        ...ex,
+        ...cleanEx,
         setsCount: sets,
         isIsometric: false,
         durationSeconds: 0,
         defaultReps: reps,
         defaultWeight: weight,
+        restSeconds: rest,
         lastSummary: `${weight}kg • ${sets}×${reps}`,
       };
     });
@@ -212,6 +287,17 @@ export default function SheetsScreen({
     }
   };
 
+  const startEditingExisting = (w) => {
+    const copy = JSON.parse(JSON.stringify(w));
+    if (copy.type === 'cardio' && copy.walkMin == null && copy.runMin == null) {
+      const half = Math.round((Number(copy.durationMin) || 40) / 2);
+      copy.walkMin = half;
+      copy.runMin = Math.max(0, (Number(copy.durationMin) || 40) - half);
+    }
+    copy.exercises = (copy.exercises || []).map(hydrateExerciseDrafts);
+    setEditingWorkout(copy);
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
@@ -243,15 +329,7 @@ export default function SheetsScreen({
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.iconBtn}
-                onPress={() => {
-                  const copy = JSON.parse(JSON.stringify(w));
-                  if (copy.type === 'cardio' && copy.walkMin == null && copy.runMin == null) {
-                    const half = Math.round((Number(copy.durationMin) || 40) / 2);
-                    copy.walkMin = half;
-                    copy.runMin = Math.max(0, (Number(copy.durationMin) || 40) - half);
-                  }
-                  setEditingWorkout(copy);
-                }}
+                onPress={() => startEditingExisting(w)}
               >
                 <Edit3 size={16} color={COLORS.orange} />
               </TouchableOpacity>
@@ -285,7 +363,7 @@ export default function SheetsScreen({
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalContent}>
+            <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Nome do Treino</Text>
               <TextInput
                 style={styles.input}
@@ -403,6 +481,13 @@ export default function SheetsScreen({
 
                   {(editingWorkout.exercises || []).map((ex, idx) => {
                     const isIso = Boolean(ex.isIsometric);
+                    const setsVal = ex._setsText ?? String(ex.setsCount ?? 3);
+                    const repsVal = ex._repsText ?? String(ex.defaultReps ?? 12);
+                    const secVal =
+                      ex._secondsText ?? String(ex.durationSeconds ?? ex.defaultReps ?? 45);
+                    const weightVal = ex._weightText ?? String(ex.defaultWeight ?? 0);
+                    const restVal = ex._restText ?? String(ex.restSeconds ?? 60);
+
                     return (
                       <View key={ex?.id || `e-${idx}`} style={styles.exCard}>
                         <View style={styles.exTop}>
@@ -446,10 +531,12 @@ export default function SheetsScreen({
                             <TextInput
                               style={styles.input}
                               keyboardType="numeric"
-                              value={String(ex.setsCount)}
-                              onChangeText={(t) =>
-                                updateExercise(idx, 'setsCount', parseInt(t, 10) || 1)
-                              }
+                              value={setsVal}
+                              onChangeText={(t) => {
+                                const cleaned = t.replace(/[^0-9]/g, '');
+                                updateExercise(idx, '_setsText', cleaned);
+                                updateExercise(idx, 'setsCount', parseInt(cleaned, 10) || 1);
+                              }}
                             />
                           </View>
 
@@ -459,11 +546,24 @@ export default function SheetsScreen({
                               <TextInput
                                 style={styles.input}
                                 keyboardType="numeric"
-                                value={String(ex.durationSeconds ?? ex.defaultReps ?? 45)}
+                                value={secVal}
                                 onChangeText={(t) => {
-                                  const s = parseInt(t, 10) || 0;
-                                  updateExercise(idx, 'durationSeconds', s);
-                                  updateExercise(idx, 'defaultReps', s);
+                                  const cleaned = t.replace(/[^0-9]/g, '');
+                                  const s = parseInt(cleaned, 10) || 0;
+                                  setEditingWorkout((prev) => ({
+                                    ...prev,
+                                    exercises: (prev?.exercises || []).map((item, i) =>
+                                      i === idx
+                                        ? {
+                                            ...item,
+                                            _secondsText: cleaned,
+                                            _repsText: cleaned,
+                                            durationSeconds: s,
+                                            defaultReps: s,
+                                          }
+                                        : item
+                                    ),
+                                  }));
                                 }}
                               />
                             </View>
@@ -474,10 +574,23 @@ export default function SheetsScreen({
                                 <TextInput
                                   style={styles.input}
                                   keyboardType="numeric"
-                                  value={String(ex.defaultReps)}
-                                  onChangeText={(t) =>
-                                    updateExercise(idx, 'defaultReps', parseInt(t, 10) || 10)
-                                  }
+                                  value={repsVal}
+                                  onChangeText={(t) => {
+                                    const cleaned = t.replace(/[^0-9]/g, '');
+                                    const r = parseInt(cleaned, 10) || 0;
+                                    setEditingWorkout((prev) => ({
+                                      ...prev,
+                                      exercises: (prev?.exercises || []).map((item, i) =>
+                                        i === idx
+                                          ? {
+                                              ...item,
+                                              _repsText: cleaned,
+                                              defaultReps: r,
+                                            }
+                                          : item
+                                      ),
+                                    }));
+                                  }}
                                 />
                               </View>
                               <View style={{ flex: 1 }}>
@@ -485,14 +598,24 @@ export default function SheetsScreen({
                                 <TextInput
                                   style={styles.input}
                                   keyboardType="numeric"
-                                  value={String(ex.defaultWeight)}
-                                  onChangeText={(t) =>
-                                    updateExercise(
-                                      idx,
-                                      'defaultWeight',
-                                      parseFloat(String(t).replace(',', '.')) || 0
-                                    )
-                                  }
+                                  value={weightVal}
+                                  onChangeText={(t) => {
+                                    const cleaned = t.replace(/[^0-9.,]/g, '');
+                                    const w =
+                                      parseFloat(cleaned.replace(',', '.')) || 0;
+                                    setEditingWorkout((prev) => ({
+                                      ...prev,
+                                      exercises: (prev?.exercises || []).map((item, i) =>
+                                        i === idx
+                                          ? {
+                                              ...item,
+                                              _weightText: cleaned,
+                                              defaultWeight: w,
+                                            }
+                                          : item
+                                      ),
+                                    }));
+                                  }}
                                 />
                               </View>
                             </>
@@ -503,10 +626,25 @@ export default function SheetsScreen({
                             <TextInput
                               style={styles.input}
                               keyboardType="numeric"
-                              value={String(ex.restSeconds)}
-                              onChangeText={(t) =>
-                                updateExercise(idx, 'restSeconds', parseInt(t, 10) || 60)
-                              }
+                              value={restVal}
+                              onChangeText={(t) => {
+                                const cleaned = t.replace(/[^0-9]/g, '');
+                                const parsed = parseInt(cleaned, 10);
+                                setEditingWorkout((prev) => ({
+                                  ...prev,
+                                  exercises: (prev?.exercises || []).map((item, i) =>
+                                    i === idx
+                                      ? {
+                                          ...item,
+                                          _restText: cleaned,
+                                          restSeconds: Number.isNaN(parsed)
+                                            ? 0
+                                            : Math.max(0, parsed),
+                                        }
+                                      : item
+                                  ),
+                                }));
+                              }}
                             />
                           </View>
                         </View>
