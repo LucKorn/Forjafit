@@ -33,11 +33,13 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
         1,
         parseInt(ex?.setsCount ?? ex?.sets ?? ex?.series, 10) || 3
       );
+      const isIso = Boolean(ex?.isIsometric);
       const baseWeight =
         Number(ex?.defaultWeight ?? ex?.weightKg ?? ex?.carga ?? 0) || 0;
-      const baseReps =
+      const secDefault =
+        parseInt(String(ex?.durationSeconds ?? ex?.defaultReps ?? ex?.reps ?? '45'), 10) || 45;
+      const repDefault =
         parseInt(String(ex?.defaultReps ?? ex?.reps ?? '12'), 10) || 12;
-      const isIso = Boolean(ex?.isIsometric);
 
       return {
         id: ex?.id || `ex-${idx}`,
@@ -46,8 +48,8 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
         lastSummary: String(
           ex?.lastSummary ||
             (isIso
-              ? `${ex?.durationSeconds || 45}s • ${setsNum}×${ex?.durationSeconds || 45}s`
-              : `${baseWeight}kg • ${setsNum}×${baseReps}`)
+              ? `${secDefault}s • ${setsNum}×${secDefault}s`
+              : `${baseWeight}kg • ${setsNum}×${repDefault}`)
         ),
         restSeconds: Number(ex?.restSeconds || 60) || 60,
         isIsometric: isIso,
@@ -55,16 +57,45 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
         rows: Array.from({ length: setsNum }, (_, sIdx) => ({
           id: `${ex?.id || idx}-s-${sIdx}`,
           weight: String(baseWeight),
-          reps: String(baseReps),
+          reps: String(isIso ? secDefault : repDefault),
           done: false,
         })),
       };
     });
   }, [safeWorkout]);
 
+  const initialWalkMin = useMemo(() => {
+    if (safeWorkout.walkMin != null) return String(safeWorkout.walkMin);
+    const total = Number(safeWorkout.durationMin) || 40;
+    return String(Math.round(total / 2));
+  }, [safeWorkout]);
+
+  const initialRunMin = useMemo(() => {
+    if (safeWorkout.runMin != null) return String(safeWorkout.runMin);
+    const total = Number(safeWorkout.durationMin) || 40;
+    const w = Math.round(total / 2);
+    return String(Math.max(0, total - w));
+  }, [safeWorkout]);
+
   const [exercises, setExercises] = useState(initialExercises);
+  const [walkMin, setWalkMin] = useState(initialWalkMin);
+  const [runMin, setRunMin] = useState(initialRunMin);
   const [distanceKm, setDistanceKm] = useState(String(safeWorkout.distanceKm ?? '6.5'));
   const [durationMin, setDurationMin] = useState(String(safeWorkout.durationMin ?? '40'));
+
+  const handleWalkChange = (val) => {
+    setWalkMin(val);
+    const w = parseInt(val, 10) || 0;
+    const r = parseInt(runMin, 10) || 0;
+    if (w + r > 0) setDurationMin(String(w + r));
+  };
+
+  const handleRunChange = (val) => {
+    setRunMin(val);
+    const w = parseInt(walkMin, 10) || 0;
+    const r = parseInt(val, 10) || 0;
+    if (w + r > 0) setDurationMin(String(w + r));
+  };
 
   const moveExercise = (idx, delta) => {
     const target = idx + delta;
@@ -125,7 +156,7 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
     if (ex.isIsometric) {
       if (ex.effort === 'Fácil') return 'Esforço leve! Sugestão: aumentar +5s a +10s na próxima sessão.';
       if (ex.effort === 'No Limite') return 'No limite! Mantenha o tempo atual até consolidar bem.';
-      return 'Intensidade ideal! Busque manter o tempo com boa execução.';
+      return 'Intensidade ideal! Busque manter os segundos com boa execução.';
     }
     if (ex.effort === 'Fácil') {
       return 'Esforço fácil! Sugestão: subir +2kg no próximo treino.';
@@ -146,7 +177,16 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
 
     if (isCardio) {
       const dist = parseFloat(String(distanceKm || '0').replace(',', '.')) || 0;
-      const dur = parseInt(String(durationMin || '0'), 10) || 0;
+      const wNum = parseInt(String(walkMin || '0'), 10) || 0;
+      const rNum = parseInt(String(runMin || '0'), 10) || 0;
+      const dur =
+        wNum + rNum > 0
+          ? wNum + rNum
+          : parseInt(String(durationMin || '0'), 10) || 0;
+
+      const intervalText =
+        wNum > 0 || rNum > 0 ? ` (${wNum}m cam / ${rNum}m corr)` : '';
+
       if (onFinish) {
         onFinish({
           id: `sess-${Date.now()}`,
@@ -158,8 +198,10 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
           dateLabel,
           volumeKg: 0,
           distanceKm: dist,
+          walkMin: wNum,
+          runMin: rNum,
           durationMin: dur,
-          summaryText: `${dist} km • ${dur} min`,
+          summaryText: `${dist} km • ${dur} min${intervalText}`,
         });
       }
       return;
@@ -175,10 +217,12 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
       if (doneRows.length > 0) {
         let exVol = 0;
         let lastW = 0;
+        let lastSec = 0;
         doneRows.forEach((r) => {
           const wNum = parseFloat(String(r.weight || '0').replace(',', '.')) || 0;
           const repNum = parseInt(String(r.reps || '0'), 10) || 0;
           lastW = wNum;
+          lastSec = repNum;
           if (!ex.isIsometric) {
             exVol += wNum * repNum;
           }
@@ -186,7 +230,7 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
         totalVolume += exVol;
         const shortEx = ex.name.split(' com ')[0];
         summaryParts.push(
-          ex.isIsometric ? `${shortEx} ${lastW || 45}s` : `${shortEx} ${lastW}kg`
+          ex.isIsometric ? `${shortEx} ${lastSec || 45}s` : `${shortEx} ${lastW}kg`
         );
       }
     });
@@ -242,6 +286,27 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
             <Text style={styles.cardTitle}>REGISTRO DE CARDIO</Text>
             {!!safeWorkout.notes && <Text style={styles.notes}>{safeWorkout.notes}</Text>}
 
+            <View style={styles.cardioSplitRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Caminhada (min)</Text>
+                <TextInput
+                  style={styles.cardioInput}
+                  keyboardType="numeric"
+                  value={walkMin}
+                  onChangeText={handleWalkChange}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Corrida (min)</Text>
+                <TextInput
+                  style={styles.cardioInput}
+                  keyboardType="numeric"
+                  value={runMin}
+                  onChangeText={handleRunChange}
+                />
+              </View>
+            </View>
+
             <Text style={styles.inputLabel}>Distância (km)</Text>
             <TextInput
               style={styles.cardioInput}
@@ -250,7 +315,7 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
               onChangeText={setDistanceKm}
             />
 
-            <Text style={styles.inputLabel}>Duração (min)</Text>
+            <Text style={styles.inputLabel}>Duração Total (min)</Text>
             <TextInput
               style={styles.cardioInput}
               keyboardType="numeric"
@@ -303,10 +368,14 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
 
                 <View style={styles.tableHeader}>
                   <Text style={[styles.th, { width: 46 }]}>SÉRIE</Text>
+                  {!ex.isIsometric && (
+                    <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>
+                      CARGA (KG)
+                    </Text>
+                  )}
                   <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>
-                    {ex.isIsometric ? 'TEMPO (S)' : 'CARGA (KG)'}
+                    {ex.isIsometric ? 'SEGUNDOS' : 'REPS'}
                   </Text>
-                  <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>REPS</Text>
                   <Text style={[styles.th, { width: 48, textAlign: 'center' }]}>FEITO</Text>
                 </View>
 
@@ -314,12 +383,14 @@ export default function WorkoutScreen({ workout, onFinish, onCancel, onStartRest
                   <View key={row.id} style={styles.tableRow}>
                     <Text style={styles.rowNum}>#{rIdx + 1}</Text>
 
-                    <TextInput
-                      style={[styles.cellInput, row.done && styles.cellInputDone]}
-                      keyboardType="numeric"
-                      value={row.weight}
-                      onChangeText={(v) => updateRowField(exIdx, rIdx, 'weight', v)}
-                    />
+                    {!ex.isIsometric && (
+                      <TextInput
+                        style={[styles.cellInput, row.done && styles.cellInputDone]}
+                        keyboardType="numeric"
+                        value={row.weight}
+                        onChangeText={(v) => updateRowField(exIdx, rIdx, 'weight', v)}
+                      />
+                    )}
 
                     <TextInput
                       style={[styles.cellInput, row.done && styles.cellInputDone]}
@@ -551,6 +622,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notes: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 8 },
+  cardioSplitRow: { flexDirection: 'row', gap: 10 },
   inputLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 8, marginBottom: 5 },
   cardioInput: {
     backgroundColor: COLORS.cardElevated,
@@ -575,4 +647,3 @@ const styles = StyleSheet.create({
   },
   finishText: { color: '#fff', fontSize: 14, fontWeight: '900', letterSpacing: 0.6 },
 });
-            
