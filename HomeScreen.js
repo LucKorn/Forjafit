@@ -45,8 +45,8 @@ export default function HomeScreen({
         <View style={{ flex: 1 }}>
           <Text style={styles.dateText}>{dateTitle}</Text>
           <View style={styles.brandRow}>
-            <Text style={styles.brandMain}>ForjaFit </Text>
-            <Text style={styles.brandSub}>Casa</Text>
+            <Text style={styles.brandForja}>Forja</Text>
+            <Text style={styles.brandFit}>Fit</Text>
           </View>
         </View>
 
@@ -198,8 +198,18 @@ const styles = StyleSheet.create({
   },
   dateText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '500' },
   brandRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 2 },
-  brandMain: { color: COLORS.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  brandSub: { color: COLORS.textSecondary, fontSize: 24, fontWeight: '400' },
+  brandForja: {
+    color: COLORS.text,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  brandFit: {
+    color: COLORS.orange,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
   monthBadge: {
     backgroundColor: COLORS.card,
     borderWidth: 1,
@@ -373,4 +383,3 @@ const styles = StyleSheet.create({
   lastSessionName: { color: COLORS.text, fontSize: 13, fontWeight: '700', marginTop: 1 },
   lastSessionVol: { color: COLORS.green, fontSize: 14, fontWeight: '800' },
 });
-                                       
